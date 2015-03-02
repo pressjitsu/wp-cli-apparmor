@@ -16,7 +16,9 @@ profile wp-cli/%profile_name% {
 	# --> sudo entry point from confinement action
 	# We pretty much trust it to setuid and exec our needed wp-cli script via php
 	/{proc,etc}/** r,
-	/dev/tty rw,
+	/dev/{tty,log} rw,
+	/**/resolv.conf r,
+	/run/utmp rk,
 	@{LIB}** rm,
 
 	capability sys_resource,
@@ -30,7 +32,7 @@ profile wp-cli/%profile_name% {
 	profile php {
 		# Libraries
 		/etc/ld.so.cache r,
-		@{LIB}lib{c,z,resolv,ssl,db,bz2,pcre,m,dl,xml2,pthread,lzma,tinfo,selinux}*.so* rm,
+		@{LIB}lib{c,z,resolv,ssl,db,bz2,pcre,m,dl,xml2,pthread,lzma,tinfo,selinux,nss,readline,gcc}*.so* rm,
 		@{LIB}ld-*.so* rm,
 		@{LIB}gconv** r,
 
@@ -46,13 +48,21 @@ profile wp-cli/%profile_name% {
 		@{LIB}locale/* r,
 		/etc/locale* r,
 
+		# Random
+		/dev/{u,}random r,
+
+		# Process information
+		/proc/meminfo r,
+
 		# Time
 		/etc/localtime r,
+		/usr/share/zoneinfo/** r,
 
 		# Configuration and module whitelist
 		/etc/php{5,}/cli/{php.ini,conf.d/**} r,
-		# /etc/php{5,}/mods-available/pdo.ini r,
-		deny /etc/php{5,}/mods-available/*.ini r,
+		/etc/php{5,}/mods-available/mysql{i,}.ini r,
+		# deny /etc/php{5,}/mods-available/*.ini r,
+		@{LIB}php5/*/mysql{i,}.so rm,
 
 		# Minimal shell
 		/bin/{da,ba,}sh rix,
@@ -62,14 +72,20 @@ profile wp-cli/%profile_name% {
 
 		# Filesystem
 		/tmp/* rw,
-		owner %wp_path% rw,
+		/tmp/wp_*{/**,} rw,
+		owner %wp_path%** rw,
+		deny /**/.wp-cli/ w,
+
+		# Network
+		network tcp, # AppArmor 2.6 does not mediate network access
+		# so there's only this much we can do at the moment
+		network dgram,
+		/**/{resolv,nsswitch,host,gai}.conf r,
+		/etc/{hosts,services} r,
+
+		# MySQL 
+		/usr/bin/mysql rix,
+		/usr/share/mysql/** r,
+		/run/mysqld/mysqld.sock rw,
 	}
-
-	# @{LIB}php5/**/mysql{i,}.so* rm,
-	# /etc/php{5,}/** r,
-	# /etc/localtime r,
-
-	# Allow PHP under same confinement profile
-	# /{usr/,usr/local/,}{s,}bin/php{5,} Ux,
-	# /**/wp{-cli,}{.phar,} r,
 }
